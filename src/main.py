@@ -229,8 +229,8 @@ class PlayerWindow(ttk.Frame):
 
         # 变焦控制
         ttk.Label(control_frame, text="Zoom:").grid(row=3, column=0, pady=5)
-        ttk.Button(control_frame, text="+", command=lambda: self.zoom_camera(0.1)).grid(row=3, column=1, pady=5)
-        ttk.Button(control_frame, text="-", command=lambda: self.zoom_camera(-0.1)).grid(row=3, column=2, pady=5)
+        ttk.Button(control_frame, text="+", command=lambda: self.zoom_camera(self.get_step())).grid(row=3, column=1, pady=5)
+        ttk.Button(control_frame, text="-", command=lambda: self.zoom_camera(-self.get_step())).grid(row=3, column=2, pady=5)
 
     def get_step(self):
         """获取步长，范围限制在1~1000，并归一化到0~1"""
