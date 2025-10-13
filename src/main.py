@@ -189,6 +189,7 @@ class PlayerWindow(ttk.Frame):
         # 输入控件
         ttk.Label(config_frame, text="IP:").grid(row=0, column=0, sticky=tk.W)
         self.ip_entry = ttk.Entry(config_frame, width=15)
+        self.ip_entry.insert(0, "172.20.4.131")
         self.ip_entry.grid(row=0, column=1, padx=2)
         
         ttk.Label(config_frame, text="Port:").grid(row=1, column=0, sticky=tk.W)
@@ -214,16 +215,31 @@ class PlayerWindow(ttk.Frame):
         control_frame = ttk.LabelFrame(self.parent, text="PTZ Control")
         control_frame.pack(side=tk.RIGHT, padx=10, pady=10, fill=tk.Y)
 
+        # 步长输入
+        ttk.Label(control_frame, text="步长(1-10000):").grid(row=0, column=3, padx=5)
+        self.step_var = tk.IntVar(value=10)
+        step_entry = ttk.Entry(control_frame, textvariable=self.step_var, width=6)
+        step_entry.grid(row=0, column=4, padx=5)
+
         # 方向控制
-        ttk.Button(control_frame, text="↑", command=lambda: self.move_camera(0, 0.1)).grid(row=0, column=1, pady=5)
-        ttk.Button(control_frame, text="←", command=lambda: self.move_camera(-0.1, 0)).grid(row=1, column=0, pady=5)
-        ttk.Button(control_frame, text="→", command=lambda: self.move_camera(0.1, 0)).grid(row=1, column=2, pady=5)
-        ttk.Button(control_frame, text="↓", command=lambda: self.move_camera(0, -0.1)).grid(row=2, column=1, pady=5)
-        
+        ttk.Button(control_frame, text="↑", command=lambda: self.move_camera(0,  -self.get_step())).grid(row=0, column=1, pady=5)
+        ttk.Button(control_frame, text="←", command=lambda: self.move_camera(-self.get_step(), 0)).grid(row=1, column=0, pady=5)
+        ttk.Button(control_frame, text="→", command=lambda: self.move_camera(self.get_step(), 0)).grid(row=1, column=2, pady=5)
+        ttk.Button(control_frame, text="↓", command=lambda: self.move_camera(0, self.get_step())).grid(row=2, column=1, pady=5)
+
         # 变焦控制
         ttk.Label(control_frame, text="Zoom:").grid(row=3, column=0, pady=5)
-        ttk.Button(control_frame, text="+", command=lambda: self.zoom_camera(0.1)).grid(row=3, column=1, pady=5)
-        ttk.Button(control_frame, text="-", command=lambda: self.zoom_camera(-0.1)).grid(row=3, column=2, pady=5)
+        ttk.Button(control_frame, text="+", command=lambda: self.zoom_camera(self.get_step())).grid(row=3, column=1, pady=5)
+        ttk.Button(control_frame, text="-", command=lambda: self.zoom_camera(-self.get_step())).grid(row=3, column=2, pady=5)
+
+    def get_step(self):
+        """获取步长，范围限制在1~1000，并归一化到0~1"""
+        try:
+            step = self.step_var.get()
+            step = max(1, min(10000, step))
+            return step / 10000.0  # 步长归一化到0~1
+        except Exception:
+            return 0.01
 
     def connect_onvif(self):
         """连接ONVIF摄像机"""
