@@ -112,7 +112,10 @@ class PlayerWindow(ttk.Frame):
     def _start_pip_stream(self):
         def ffmpeg_stream(url, width, height):
             cmd = [
-                'ffmpeg',       
+                'ffmpeg', 
+                '-hwaccel', 'cuda',  # 使用NVIDIA硬件加速
+                '-hwaccel_device', '0',
+                '-c:v', 'h264_cuvid',  # NVIDIA解码    
                 '-protocol_whitelist', 'rtsp,udp,rtp,file,http,https,tcp',
                 '-i', url, # 设置输入URL为播放源
                 '-f', 'rawvideo',  # 输出格式为原始视频流
@@ -229,11 +232,11 @@ class PlayerWindow(ttk.Frame):
 
         # 变焦控制
         ttk.Label(control_frame, text="Zoom:").grid(row=3, column=0, pady=5)
-        ttk.Button(control_frame, text="+", command=lambda: self.zoom_camera(self.get_step())).grid(row=3, column=1, pady=5)
-        ttk.Button(control_frame, text="-", command=lambda: self.zoom_camera(-self.get_step())).grid(row=3, column=2, pady=5)
+        ttk.Button(control_frame, text="+", command=lambda: self.zoom_camera(0.1)).grid(row=3, column=1, pady=5)
+        ttk.Button(control_frame, text="-", command=lambda: self.zoom_camera(-0.1)).grid(row=3, column=2, pady=5)
 
     def get_step(self):
-        """获取步长，范围限制在1~1000，并归一化到0~1"""
+        """获取步长，范围限制在1~10000，并归一化到0~1"""
         try:
             step = self.step_var.get()
             step = max(1, min(10000, step))
