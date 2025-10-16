@@ -7,14 +7,31 @@ import subprocess
 import numpy as np
 from onvif import ONVIFCamera
 from tkinter import simpledialog, messagebox
+from tkinter.scrolledtext import ScrolledText
+from zeep import helpers
+from lxml import etree
+from zeep.plugins import HistoryPlugin
 
 class ONVIFController:
     def __init__(self, ip, port, username, password):
+        self.history = HistoryPlugin()
         self.cam = ONVIFCamera(ip, port, username, password)
-        # 创建PTZ服务
         self.ptz = self.cam.create_ptz_service()
         self.media = self.cam.create_media_service()
         self.imaging = self.cam.create_imaging_service()
+        # 兼容主流onvif-py，插件加到_client.plugins
+        try:
+            self.ptz._client.plugins.append(self.history)
+        except AttributeError:
+            pass
+        try:
+            self.media._client.plugins.append(self.history)
+        except AttributeError:
+            pass
+        try:
+            self.imaging._client.plugins.append(self.history)
+        except AttributeError:
+            pass
         
     def get_profiles(self):
         """获取摄像机配置集"""
@@ -60,6 +77,40 @@ class ONVIFController:
         time.sleep(timeout)
         self.ptz.Stop({'ProfileToken': req.ProfileToken})
 
+    def relative_move_with_log(self, pan, tilt, zoom, speed=0.5):
+        req = self.ptz.create_type('RelativeMove')
+        req.ProfileToken = self.get_profiles()[0].token
+        req.Translation = {
+            'PanTilt': {'x': pan, 'y': tilt},
+            'Zoom': {'x': zoom}
+        }
+        req.Speed = {
+            'PanTilt': {'x': speed, 'y': speed},
+            'Zoom': {'x': speed}
+        }
+        send_content = "未捕获到发送内容"
+        recv_content = "未捕获到返回内容"
+        try:
+            self.ptz.RelativeMove(req)
+            # 捕获最近一次请求和响应
+            if hasattr(self.history, 'last_sent') and self.history.last_sent is not None:
+                try:
+                    send_content = etree.tostring(self.history.last_sent["envelope"], pretty_print=True, encoding='unicode')
+                except Exception:
+                    send_content = "未捕获到发送内容"
+            if hasattr(self.history, 'last_received') and self.history.last_received is not None:
+                try:
+                    recv_content = etree.tostring(self.history.last_received["envelope"], pretty_print=True, encoding='unicode')
+                except Exception:
+                    recv_content = "未捕获到返回内容"
+        except Exception as e:
+            recv_content = f"Error: {e}"
+        print("发送内容：", send_content)
+        print("返回内容：", recv_content)
+        print("history.last_sent:", getattr(self.history, 'last_sent', None))
+        print("history.last_received:", getattr(self.history, 'last_received', None))
+        return send_content, recv_content
+
 class PlayerWindow(ttk.Frame):
     def __init__(self, parent):
         ttk.Frame.__init__(self, parent)
@@ -80,6 +131,8 @@ class PlayerWindow(ttk.Frame):
         self.panel1.bind("<Configure>", self.on_panel_resize)
         self.need_restart_stream = False
         self.onvif_controller = None
+        self.send_text = None
+        self.recv_text = None
 
     def create_widgets(self):
         stream1_label = ttk.Label(self, text="Stream 1:")
@@ -235,6 +288,9 @@ class PlayerWindow(ttk.Frame):
         ttk.Button(control_frame, text="+", command=lambda: self.zoom_camera(0.1)).grid(row=3, column=1, pady=5)
         ttk.Button(control_frame, text="-", command=lambda: self.zoom_camera(-0.1)).grid(row=3, column=2, pady=5)
 
+    def log_onvif(self, send_content, recv_content):
+        pass
+
     def get_step(self):
         """获取步长，范围限制在1~10000，并归一化到0~1"""
         try:
@@ -264,12 +320,14 @@ class PlayerWindow(ttk.Frame):
     def move_camera(self, pan, tilt):
         """移动摄像机"""
         if self.onvif_controller:
-            self.onvif_controller.relative_move(pan, tilt, 0)
+            send, recv = self.onvif_controller.relative_move_with_log(pan, tilt, 0)
+            self.log_onvif(send, recv)
     
     def zoom_camera(self, zoom):
         """变焦控制"""
         if self.onvif_controller:
-            self.onvif_controller.relative_move(0, 0, zoom)
+            send, recv = self.onvif_controller.relative_move_with_log(0, 0, zoom)
+            self.log_onvif(send, recv)
 
 if __name__ == "__main__":
     def main():
